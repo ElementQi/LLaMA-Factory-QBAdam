@@ -48,6 +48,12 @@ class CustomSeq2SeqTrainer(Seq2SeqTrainer):
     def __init__(
         self, finetuning_args: "FinetuningArguments", processor: Optional["ProcessorMixin"], **kwargs
     ) -> None:
+        # hack when using quantized model
+        if finetuning_args.use_qbadam:
+            model = kwargs.get('model')
+            if model is not None:
+                model.is_quantized = False
+
         super().__init__(**kwargs)
         self.finetuning_args = finetuning_args
         self.processor = processor
