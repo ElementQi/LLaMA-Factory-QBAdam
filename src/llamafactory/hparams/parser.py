@@ -127,6 +127,9 @@ def _check_extra_dependencies(
     if finetuning_args.use_badam:
         require_version("badam", "To fix: pip install badam")
 
+    if finetuning_args.use_qbadam:
+        require_version("jieba", "test using qbadam")
+
     if finetuning_args.plot_loss:
         require_version("matplotlib", "To fix: pip install matplotlib")
 

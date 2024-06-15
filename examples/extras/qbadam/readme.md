@@ -1,0 +1,1 @@
+CUDA_VISIBLE_DEVICES=0 llamafactory-cli train examples/extras/qbadam/llama3_full_sft_v2_K1000_gc_16_copy.yaml
