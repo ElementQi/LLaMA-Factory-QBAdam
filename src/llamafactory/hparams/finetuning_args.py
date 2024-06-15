@@ -359,7 +359,7 @@ class QBAdamArgument:
 
 
 @dataclass
-class FinetuningArguments(FreezeArguments, LoraArguments, RLHFArguments, GaloreArguments, BAdamArgument):
+class FinetuningArguments(FreezeArguments, LoraArguments, RLHFArguments, GaloreArguments, BAdamArgument, QBAdamArgument):
     r"""
     Arguments pertaining to which techniques we are going to fine-tuning with.
     """
