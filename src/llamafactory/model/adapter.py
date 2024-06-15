@@ -282,7 +282,11 @@ def init_adapter(
     Note that the trainable parameters must be cast to float32.
     """
     if is_trainable and getattr(model, "quantization_method", None) and finetuning_args.finetuning_type != "lora":
-        raise ValueError("Quantized models can only be used for the LoRA tuning.")
+        # hack when using quantized and badam
+        if finetuning_args.use_qbadam == True:
+            pass 
+        else:
+            raise ValueError("Quantized models can only be used for the LoRA tuning.")
 
     if not is_trainable:
         cast_trainable_params_to_fp32 = False

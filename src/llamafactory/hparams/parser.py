@@ -88,7 +88,11 @@ def _verify_model_args(model_args: "ModelArguments", finetuning_args: "Finetunin
 
     if model_args.quantization_bit is not None:
         if finetuning_args.finetuning_type != "lora":
-            raise ValueError("Quantization is only compatible with the LoRA method.")
+            # hack when using quantize
+            if finetuning_args.use_qbadam == True:
+                pass
+            else:
+                raise ValueError("Quantization is only compatible with the LoRA method.")
 
         if finetuning_args.use_pissa:
             raise ValueError("Please use scripts/pissa_init.py for quantized PiSSA.")
@@ -210,13 +214,13 @@ def get_train_args(args: Optional[Dict[str, Any]] = None) -> _TRAIN_CLS:
         raise ValueError("Distributed training does not support layer-wise GaLore.")
 
     if (
-        finetuning_args.use_badam
+        (finetuning_args.use_badam or finetuning_args.use_qbadam)
         and finetuning_args.badam_mode == "layer"
         and training_args.parallel_mode == ParallelMode.DISTRIBUTED
     ):
         raise ValueError("Layer-wise BAdam does not yet support distributed training, use ratio-wise BAdam.")
 
-    if (finetuning_args.use_galore or finetuning_args.use_badam) and training_args.deepspeed is not None:
+    if (finetuning_args.use_galore or finetuning_args.use_badam or finetuning_args.use_qbadam) and training_args.deepspeed is not None:
         raise ValueError("GaLore and BAdam are incompatible with DeepSpeed yet.")
 
     if model_args.infer_backend == "vllm":

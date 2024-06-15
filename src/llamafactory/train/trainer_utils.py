@@ -411,6 +411,51 @@ def _create_badam_optimizer(
     return optimizer
 
 
+def _create_qbadam_optimizer(
+    model: "PreTrainedModel",
+    training_args: "Seq2SeqTrainingArguments",
+    finetuning_args: "FinetuningArguments",
+) -> "torch.optim.Optimizer":
+    decay_params, nodecay_params = [], []
+    decay_param_names = _get_decay_parameter_names(model)
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            if name in decay_param_names:
+                decay_params.append(param)
+            else:
+                nodecay_params.append(param)
+
+    optim_class, optim_kwargs = Trainer.get_optimizer_cls_and_kwargs(training_args)
+    param_groups = [
+        dict(params=nodecay_params, weight_decay=0.0),
+        dict(params=decay_params, weight_decay=training_args.weight_decay),
+    ]
+
+    if finetuning_args.badam_mode == "layer":
+        from .custom_modules.qbadam import QBlockOptimizer
+        model.is_quantized = False
+
+        base_optimizer = optim_class(param_groups, **optim_kwargs)
+        optimizer = QBlockOptimizer(
+            base_optimizer=base_optimizer,
+            named_parameters_list=list(model.named_parameters()),
+            block_prefix_list=None,
+            switch_block_every=finetuning_args.badam_switch_interval,
+            start_block=finetuning_args.badam_start_block,
+            switch_mode=finetuning_args.badam_switch_mode,
+            verbose=finetuning_args.badam_verbose,
+            model=model,
+        )
+        logger.info(
+            f"Using QBAdam optimizer with layer-wise update, switch mode is {finetuning_args.badam_switch_mode}, "
+            f"switch block every {finetuning_args.badam_switch_interval} steps, "
+            f"default start block is {finetuning_args.badam_start_block}"
+        )
+
+    return optimizer
+
+
+
 def create_custom_optimzer(
     model: "PreTrainedModel",
     training_args: "Seq2SeqTrainingArguments",
@@ -424,7 +469,9 @@ def create_custom_optimzer(
 
     if finetuning_args.use_badam:
         return _create_badam_optimizer(model, training_args, finetuning_args)
-
+    
+    if finetuning_args.use_qbadam:
+        return _create_qbadam_optimizer(model, training_args, finetuning_args)
 
 def create_custom_scheduler(
     training_args: "Seq2SeqTrainingArguments",

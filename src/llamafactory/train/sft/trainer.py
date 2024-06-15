@@ -55,7 +55,7 @@ class CustomSeq2SeqTrainer(Seq2SeqTrainer):
         if finetuning_args.pissa_convert:
             self.save_model(os.path.join(self.args.output_dir, "pissa_init"))
 
-        if finetuning_args.use_badam:
+        if finetuning_args.use_badam or finetuning_args.use_qbadam:
             from badam import clip_grad_norm_for_sparse_tensor
 
             self.accelerator.clip_grad_norm_ = MethodType(clip_grad_norm_for_sparse_tensor, self.accelerator)

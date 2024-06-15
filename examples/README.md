@@ -189,6 +189,12 @@ llamafactory-cli train examples/extras/galore/llama3_full_sft.yaml
 llamafactory-cli train examples/extras/badam/llama3_full_sft.yaml
 ```
 
+#### Full-Parameter Fine-Tuning using QBAdam
+
+```bash
+CUDA_VISIBLE_DEVICES=0 llamafactory-cli train examples/extras/qbadam/llama3_full_sft_v2_K1000_gc_16.yaml
+```
+
 #### LoRA+ Fine-Tuning
 
 ```bash
