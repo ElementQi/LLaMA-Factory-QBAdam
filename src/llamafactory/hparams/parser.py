@@ -87,7 +87,7 @@ def _verify_model_args(model_args: "ModelArguments", finetuning_args: "Finetunin
         raise ValueError("Unsloth is incompatible with DeepSpeed ZeRO-3.")
 
     if model_args.quantization_bit is not None:
-        if finetuning_args.finetuning_type != "lora":
+        if finetuning_args.finetuning_type not in ["lora", "delta"]:
             # hack when using quantize
             if finetuning_args.use_qbadam == True:
                 pass

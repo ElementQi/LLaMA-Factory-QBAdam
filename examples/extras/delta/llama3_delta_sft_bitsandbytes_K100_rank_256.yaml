@@ -1,0 +1,49 @@
+### model
+model_name_or_path: meta-llama/Meta-Llama-3-8B
+quantization_bit: 4
+
+### method
+stage: sft
+do_train: true
+finetuning_type: delta
+lora_target: all
+lora_rank: 256
+lora_alpha: 256
+
+use_delta: true
+badam_mode: layer
+badam_switch_mode: ascending
+badam_switch_interval: 100
+badam_verbose: 1
+
+### dataset
+dataset: alpaca_gpt4_en
+template: llama3
+cutoff_len: 1024
+# max_samples: 1000
+overwrite_cache: true
+preprocessing_num_workers: 16
+
+### output
+output_dir: /home/ubuntu/date/test-ckpts/delta_llama3_gc_8_K100_rank_256
+logging_steps: 10
+save_steps: 10000
+plot_loss: true
+overwrite_output_dir: true
+
+### train
+per_device_train_batch_size: 1
+gradient_accumulation_steps: 8
+learning_rate: 1.0e-5
+num_train_epochs: 1.0
+lr_scheduler_type: cosine
+warmup_ratio: 0
+# fp16: true
+pure_bf16: true
+ddp_timeout: 180000000
+
+### eval
+val_size: 100
+per_device_eval_batch_size: 1
+eval_strategy: steps
+eval_steps: 10

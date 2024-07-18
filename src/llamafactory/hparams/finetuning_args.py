@@ -357,9 +357,103 @@ class QBAdamArgument:
     )
 
 
+@dataclass
+class DeltaArgument:
+    r"""
+    Arguments pertaining to the Delta optimizer.
+    """
+
+    # optimizer section
+    use_delta: bool = field(
+        default=False,
+        metadata={"help": "Whether or not to use the Delta optimizer."},
+    )
+    badam_mode: Literal["layer", "ratio"] = field(
+        default="layer",
+        metadata={"help": "Whether to use layer-wise or ratio-wise BAdam optimizer."},
+    )
+    badam_start_block: Optional[int] = field(
+        default=None,
+        metadata={"help": "The starting block index for layer-wise BAdam."},
+    )
+    badam_switch_mode: Optional[Literal["ascending", "descending", "random", "fixed"]] = field(
+        default="ascending",
+        metadata={"help": "the strategy of picking block to update for layer-wise BAdam."},
+    )
+    badam_switch_interval: Optional[int] = field(
+        default=50,
+        metadata={
+            "help": "Number of steps to update the block for layer-wise BAdam. Use -1 to disable the block update."
+        },
+    )
+    badam_update_ratio: float = field(
+        default=0.05,
+        metadata={"help": "The ratio of the update for ratio-wise BAdam."},
+    )
+    badam_mask_mode: Literal["adjacent", "scatter"] = field(
+        default="adjacent",
+        metadata={
+            "help": (
+                "The mode of the mask for BAdam optimizer. "
+                "`adjacent` means that the trainable parameters are adjacent to each other, "
+                "`scatter` means that trainable parameters are randomly choosed from the weight."
+            )
+        },
+    )
+    badam_verbose: int = field(
+        default=0,
+        metadata={
+            "help": (
+                "The verbosity level of BAdam optimizer. "
+                "0 for no print, 1 for print the block prefix, 2 for print trainable parameters."
+            )
+        },
+    )
+
+    # adapter section
+    additional_target: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": (
+                "Name(s) of modules apart from Delta layers to be set as trainable "
+                "and saved in the final checkpoint. "
+                "Use commas to separate multiple modules."
+            )
+        },
+    )
+    lora_alpha: Optional[int] = field(
+        default=32,
+        metadata={"help": "The scale factor for LoRA fine-tuning (default: lora_rank * 2)."},
+    )
+    lora_dropout: float = field(
+        default=0.0,
+        metadata={"help": "Dropout rate for the LoRA fine-tuning."},
+    )
+    lora_rank: int = field(
+        default=32,
+        metadata={"help": "The intrinsic dimension for LoRA fine-tuning."},
+    )
+    lora_target: str = field(
+        default="all",
+        metadata={
+            "help": (
+                "Name(s) of target modules to apply LoRA. "
+                "Use commas to separate multiple modules. "
+                "Use `all` to specify all the linear modules."
+            )
+        },
+    )
+    use_rslora: bool = field(
+        default=False,
+        metadata={"help": "Whether or not to use the rank stabilization scaling factor for LoRA layer."},
+    )
+    create_new_adapter: bool = field(
+        default=False,
+        metadata={"help": "Whether or not to create a new adapter with randomly initialized weight."},
+    )
 
 @dataclass
-class FinetuningArguments(FreezeArguments, LoraArguments, RLHFArguments, GaloreArguments, BAdamArgument, QBAdamArgument):
+class FinetuningArguments(FreezeArguments, LoraArguments, RLHFArguments, GaloreArguments, BAdamArgument, QBAdamArgument, DeltaArgument):
     r"""
     Arguments pertaining to which techniques we are going to fine-tuning with.
     """
@@ -408,7 +502,7 @@ class FinetuningArguments(FreezeArguments, LoraArguments, RLHFArguments, GaloreA
         self.freeze_vision_tower = self.freeze_vision_tower or self.train_mm_proj_only
         self.use_ref_model = (self.stage == "dpo" and self.pref_loss not in ["orpo", "simpo"])
 
-        assert self.finetuning_type in ["lora", "freeze", "full"], "Invalid fine-tuning method."
+        assert self.finetuning_type in ["lora", "freeze", "full", "delta"], "Invalid fine-tuning method."
         assert self.ref_model_quantization_bit in [None, 8, 4], "We only accept 4-bit or 8-bit quantization."
         assert self.reward_model_quantization_bit in [None, 8, 4], "We only accept 4-bit or 8-bit quantization."
 
