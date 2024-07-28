@@ -411,8 +411,8 @@ def init_adapter(
 
     if not is_trainable:
         cast_trainable_params_to_fp32 = False
-    elif is_deepspeed_zero3_enabled() or is_fsdp_enabled() or finetuning_args.pure_bf16 or finetuning_args.use_badam:
-        logger.info("ZeRO3/FSDP/PureBF16/BAdam detected, remaining trainable params as their original precision.")
+    elif is_deepspeed_zero3_enabled() or is_fsdp_enabled() or finetuning_args.pure_bf16 or finetuning_args.use_badam or finetuning_args.use_qbadam:
+        logger.info("ZeRO3/FSDP/PureBF16/(Q/BAdam) detected, remaining trainable params as their original precision.")
         cast_trainable_params_to_fp32 = False
     else:
         logger.info("Upcasting trainable params to float32.")
@@ -427,6 +427,7 @@ def init_adapter(
             config, model, model_args, finetuning_args, is_trainable, cast_trainable_params_to_fp32
         )
     elif finetuning_args.finetuning_type == "delta":
+        logger.info("Setup delta tuning section.")
         model = _setup_delta_tuning(
             config, model, model_args, finetuning_args, is_trainable, cast_trainable_params_to_fp32
         )
