@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 
 from ...extras.constants import IGNORE_INDEX
 from ...extras.logging import get_logger
-from .processor_utils import get_paligemma_token_type_ids, get_pixel_values, greedy_knapsack
+from .processor_utils import get_paligemma_token_type_ids, get_pixel_values, greedy_knapsack, infer_seqlen
 
 
 if TYPE_CHECKING:
@@ -38,7 +38,9 @@ def _encode_supervised_example(
     template: "Template",
     tokenizer: "PreTrainedTokenizer",
     processor: Optional["ProcessorMixin"],
-    data_args: "DataArguments",
+    cutoff_len: int,
+    train_on_prompt: bool,
+    mask_history: bool,
 ) -> Tuple[List[int], List[int]]:
     if processor is not None and not hasattr(processor, "image_seq_length"):  # llava-like models
         prompt[0]["content"] = template.image_token + prompt[0]["content"]
@@ -51,19 +53,38 @@ def _encode_supervised_example(
         input_ids += [image_token_id] * getattr(processor, "image_seq_length")
         labels += [IGNORE_INDEX] * getattr(processor, "image_seq_length")
 
-    encoded_pairs = template.encode_multiturn(
-        tokenizer, messages, system, tools, data_args.cutoff_len, data_args.reserved_label_len
-    )
-    for turn_idx, (source_ids, target_ids) in enumerate(encoded_pairs):
-        if data_args.train_on_prompt:
-            source_mask = source_ids
-        elif turn_idx != 0 and template.efficient_eos:
-            source_mask = [tokenizer.eos_token_id] + [IGNORE_INDEX] * (len(source_ids) - 1)
-        else:
-            source_mask = [IGNORE_INDEX] * len(source_ids)
+    encoded_pairs = template.encode_multiturn(tokenizer, messages, system, tools)
+    total_length = 1 if template.efficient_eos else 0
+    if mask_history:
+        encoded_pairs = encoded_pairs[::-1]  # high priority for last turns
 
-        input_ids += source_ids + target_ids
-        labels += source_mask + target_ids
+    for turn_idx, (source_ids, target_ids) in enumerate(encoded_pairs):
+        if total_length >= cutoff_len:
+            break
+
+        source_len, target_len = infer_seqlen(len(source_ids), len(target_ids), cutoff_len - total_length)
+        source_ids = source_ids[:source_len]
+        target_ids = target_ids[:target_len]
+        total_length += source_len + target_len
+
+        if train_on_prompt:
+            source_label = source_ids
+        elif template.efficient_eos:
+            source_label = [tokenizer.eos_token_id] + [IGNORE_INDEX] * (source_len - 1)
+        else:
+            source_label = [IGNORE_INDEX] * source_len
+
+        if mask_history and turn_idx != 0:  # train on the last turn only
+            target_label = [IGNORE_INDEX] * target_len
+        else:
+            target_label = target_ids
+
+        if mask_history:  # reversed sequences
+            input_ids = source_ids + target_ids + input_ids
+            labels = source_label + target_label + labels
+        else:
+            input_ids += source_ids + target_ids
+            labels += source_label + target_label
 
     if template.efficient_eos:
         input_ids += [tokenizer.eos_token_id]
@@ -100,7 +121,9 @@ def preprocess_supervised_dataset(
             template=template,
             tokenizer=tokenizer,
             processor=processor,
-            data_args=data_args,
+            cutoff_len=data_args.cutoff_len,
+            train_on_prompt=data_args.train_on_prompt,
+            mask_history=data_args.mask_history,
         )
         model_inputs["input_ids"].append(input_ids)
         model_inputs["attention_mask"].append([1] * len(input_ids))
@@ -138,7 +161,9 @@ def preprocess_packed_supervised_dataset(
             template=template,
             tokenizer=tokenizer,
             processor=None,
-            data_args=data_args,
+            cutoff_len=data_args.cutoff_len - 1,  # reserved for the padding token
+            train_on_prompt=data_args.train_on_prompt,
+            mask_history=data_args.mask_history,
         )
         length = len(input_ids)
         if length > data_args.cutoff_len:
@@ -151,24 +176,32 @@ def preprocess_packed_supervised_dataset(
             valid_num += 1
 
     model_inputs = {"input_ids": [], "attention_mask": [], "labels": []}
-    knapsacks = greedy_knapsack(lengths, data_args.cutoff_len)
+    knapsacks = greedy_knapsack(lengths, data_args.cutoff_len - 1)  # reserved for the padding token
     for knapsack in knapsacks:
-        packed_input_ids, packed_labels = [], []
-        for length in knapsack:
+        packed_input_ids, packed_attention_masks, packed_labels = [], [], []
+        for i, length in enumerate(knapsack):
             index = length2indexes[length].pop()
             packed_input_ids += batch_input_ids[index]
             packed_labels += batch_labels[index]
+            if data_args.neat_packing:
+                packed_attention_masks += [i + 1] * len(batch_input_ids[index])  # start from 1
+            else:
+                packed_attention_masks += [1] * len(batch_input_ids[index])
 
         if len(packed_input_ids) < data_args.cutoff_len:
             pad_length = data_args.cutoff_len - len(packed_input_ids)
             packed_input_ids += [tokenizer.pad_token_id] * pad_length
             packed_labels += [IGNORE_INDEX] * pad_length
+            if data_args.neat_packing:
+                packed_attention_masks += [0] * pad_length
+            else:
+                packed_attention_masks += [1] * pad_length  # more efficient flash_attn
 
         if len(packed_input_ids) != data_args.cutoff_len:
             raise ValueError("The length of packed example should be identical to the cutoff length.")
 
         model_inputs["input_ids"].append(packed_input_ids)
-        model_inputs["attention_mask"].append([1] * data_args.cutoff_len)
+        model_inputs["attention_mask"].append(packed_attention_masks)
         model_inputs["labels"].append(packed_labels)
 
     return model_inputs

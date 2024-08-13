@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 
 from ...extras.logging import get_logger
 from ..data_utils import Role
-from .processor_utils import get_paligemma_token_type_ids, get_pixel_values
+from .processor_utils import get_paligemma_token_type_ids, get_pixel_values, infer_seqlen
 
 
 if TYPE_CHECKING:
@@ -37,7 +37,7 @@ def _encode_unsupervised_example(
     template: "Template",
     tokenizer: "PreTrainedTokenizer",
     processor: Optional["ProcessorMixin"],
-    data_args: "DataArguments",
+    cutoff_len: int,
 ) -> Tuple[List[int], List[int]]:
     if processor is not None and not hasattr(processor, "image_seq_length"):  # llava-like models
         prompt[0]["content"] = template.image_token + prompt[0]["content"]
@@ -47,9 +47,7 @@ def _encode_unsupervised_example(
     else:
         messages = prompt + [{"role": Role.ASSISTANT.value, "content": ""}]
 
-    input_ids, labels = template.encode_oneturn(
-        tokenizer, messages, system, tools, data_args.cutoff_len, data_args.reserved_label_len
-    )
+    input_ids, labels = template.encode_oneturn(tokenizer, messages, system, tools)
     if template.efficient_eos:
         labels += [tokenizer.eos_token_id]
 
@@ -57,6 +55,9 @@ def _encode_unsupervised_example(
         image_token_id = tokenizer.convert_tokens_to_ids(template.image_token)
         input_ids = [image_token_id] * getattr(processor, "image_seq_length") + input_ids
 
+    source_len, target_len = infer_seqlen(len(input_ids), len(labels), cutoff_len)
+    input_ids = input_ids[:source_len]
+    labels = labels[:target_len]
     return input_ids, labels
 
 
@@ -87,7 +88,7 @@ def preprocess_unsupervised_dataset(
             template=template,
             tokenizer=tokenizer,
             processor=processor,
-            data_args=data_args,
+            cutoff_len=data_args.cutoff_len,
         )
         model_inputs["input_ids"].append(input_ids)
         model_inputs["attention_mask"].append([1] * len(input_ids))

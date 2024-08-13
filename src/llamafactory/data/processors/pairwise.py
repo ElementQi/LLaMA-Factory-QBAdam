@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 
 from ...extras.constants import IGNORE_INDEX
 from ...extras.logging import get_logger
-from .processor_utils import get_paligemma_token_type_ids, get_pixel_values
+from .processor_utils import get_paligemma_token_type_ids, get_pixel_values, infer_seqlen
 
 
 if TYPE_CHECKING:
@@ -37,19 +37,15 @@ def _encode_pairwise_example(
     template: "Template",
     tokenizer: "PreTrainedTokenizer",
     processor: Optional["ProcessorMixin"],
-    data_args: "DataArguments",
+    cutoff_len: int,
 ) -> Tuple[List[int], List[int], List[int], List[int]]:
     if processor is not None and not hasattr(processor, "image_seq_length"):  # llava-like models
         prompt[0]["content"] = template.image_token + prompt[0]["content"]
 
     chosen_messages = prompt + [response[0]]
     rejected_messages = prompt + [response[1]]
-    prompt_ids, chosen_ids = template.encode_oneturn(
-        tokenizer, chosen_messages, system, tools, data_args.cutoff_len, data_args.reserved_label_len
-    )
-    _, rejected_ids = template.encode_oneturn(
-        tokenizer, rejected_messages, system, tools, data_args.cutoff_len, data_args.reserved_label_len
-    )
+    prompt_ids, chosen_ids = template.encode_oneturn(tokenizer, chosen_messages, system, tools)
+    _, rejected_ids = template.encode_oneturn(tokenizer, rejected_messages, system, tools)
 
     if template.efficient_eos:
         chosen_ids += [tokenizer.eos_token_id]
@@ -59,10 +55,16 @@ def _encode_pairwise_example(
         image_token_id = tokenizer.convert_tokens_to_ids(template.image_token)
         prompt_ids = [image_token_id] * getattr(processor, "image_seq_length") + prompt_ids
 
+    # consider the response is more important
+    source_len, target_len = infer_seqlen(len(prompt_ids), max(len(chosen_ids), len(rejected_ids)), cutoff_len)
+    prompt_ids = prompt_ids[:source_len]
+    chosen_ids = chosen_ids[:target_len]
+    rejected_ids = rejected_ids[:target_len]
+
     chosen_input_ids = prompt_ids + chosen_ids
-    chosen_labels = [IGNORE_INDEX] * len(prompt_ids) + chosen_ids
+    chosen_labels = [IGNORE_INDEX] * source_len + chosen_ids
     rejected_input_ids = prompt_ids + rejected_ids
-    rejected_labels = [IGNORE_INDEX] * len(prompt_ids) + rejected_ids
+    rejected_labels = [IGNORE_INDEX] * source_len + rejected_ids
 
     return chosen_input_ids, chosen_labels, rejected_input_ids, rejected_labels
 
@@ -102,7 +104,7 @@ def preprocess_pairwise_dataset(
             template=template,
             tokenizer=tokenizer,
             processor=processor,
-            data_args=data_args,
+            cutoff_len=data_args.cutoff_len,
         )
         model_inputs["chosen_input_ids"].append(chosen_input_ids)
         model_inputs["chosen_attention_mask"].append([1] * len(chosen_input_ids))

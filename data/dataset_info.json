@@ -172,9 +172,19 @@
   "deepctrl": {
     "ms_hub_url": "deepctrl/deepctrl-sft-data"
   },
-  "adgen": {
+  "adgen_train": {
     "hf_hub_url": "HasturOfficial/adgen",
     "ms_hub_url": "AI-ModelScope/adgen",
+    "split": "train",
+    "columns": {
+      "prompt": "content",
+      "response": "summary"
+    }
+  },
+  "adgen_eval": {
+    "hf_hub_url": "HasturOfficial/adgen",
+    "ms_hub_url": "AI-ModelScope/adgen",
+    "split": "validation",
     "columns": {
       "prompt": "content",
       "response": "summary"
@@ -251,6 +261,24 @@
   "neo_sft": {
     "hf_hub_url": "m-a-p/neo_sft_phase2",
     "formatting": "sharegpt"
+  },
+  "magpie_pro_300k": {
+    "hf_hub_url": "Magpie-Align/Magpie-Pro-300K-Filtered",
+    "formatting": "sharegpt"
+  },
+  "magpie_ultra": {
+    "hf_hub_url": "argilla/magpie-ultra-v0.1",
+    "columns": {
+      "prompt": "instruction",
+      "response": "response"
+    }
+  },
+  "web_instruct": {
+    "hf_hub_url": "TIGER-Lab/WebInstructSub",
+    "columns": {
+      "prompt": "question",
+      "response": "answer"
+    }
   },
   "llava_1k_en": {
     "hf_hub_url": "BUAADreamer/llava-en-zh-2k",
@@ -524,13 +552,13 @@
       "prompt": "text"
     }
   },
-  "fileweb": {
+  "fineweb": {
     "hf_hub_url": "HuggingFaceFW/fineweb",
     "columns": {
       "prompt": "text"
     }
   },
-  "fileweb_edu": {
+  "fineweb_edu": {
     "hf_hub_url": "HuggingFaceFW/fineweb-edu",
     "columns": {
       "prompt": "text"

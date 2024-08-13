@@ -19,7 +19,7 @@
 import json
 import os
 from collections import OrderedDict
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import fire
 import torch
@@ -47,8 +47,8 @@ def block_expansion(
     model_name_or_path: str,
     output_dir: str,
     num_expand: int,
-    shard_size: Optional[str] = "2GB",
-    save_safetensors: Optional[bool] = False,
+    shard_size: str = "2GB",
+    save_safetensors: bool = True,
 ):
     r"""
     Performs block expansion for LLaMA, Mistral, Qwen1.5 or Yi models.
@@ -120,7 +120,7 @@ def block_expansion(
             json.dump(index, f, indent=2, sort_keys=True)
         print("Model weights saved in {}".format(output_dir))
 
-    print("Fine-tune this model with:")
+    print("- Fine-tune this model with:")
     print("model_name_or_path: {}".format(output_dir))
     print("finetuning_type: freeze")
     print("freeze_trainable_layers: {}".format(num_expand))
