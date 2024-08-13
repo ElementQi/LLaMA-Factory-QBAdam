@@ -225,3 +225,68 @@ bash examples/extras/fsdp_qlora/single_node.sh
 ```bash
 llamafactory-cli train examples/extras/pissa/llama3_lora_sft.yaml
 ```
+
+#### Delta Fine-Tuning
+CUDA_VISIBLE_DEVICES=0 llamafactory-cli train examples/extras/delta/llama3_delta_sft_bitsandbytes.yaml
+
+CUDA_VISIBLE_DEVICES=0 llamafactory-cli train examples/extras/delta/llama3_delta_sft_bitsandbytes_K50.yaml
+
+CUDA_VISIBLE_DEVICES=0 llamafactory-cli train examples/extras/delta/llama3_delta_sft_bitsandbytes_K20.yaml
+
+CUDA_VISIBLE_DEVICES=0 llamafactory-cli train examples/extras/delta/llama3_delta_sft_bitsandbytes_K20_rank_64.yaml
+
+
+CUDA_VISIBLE_DEVICES=0 llamafactory-cli train examples/extras/delta/llama3_delta_simple_sparse_bnb_K50.yaml
+
+CUDA_VISIBLE_DEVICES=3 llamafactory-cli train examples/extras/delta/llama3_delta_simple_sparse_bnb_K20.yaml
+
+
+CUDA_VISIBLE_DEVICES=0 llamafactory-cli train examples/extras/delta/llama3_delta_lion_like_v1_bnb_K20.yaml
+
+
+CUDA_VISIBLE_DEVICES=1 llamafactory-cli train examples/extras/delta/llama3_delta_lion_like_v1_bnb_K20_pdb.yaml
+
+
+CUDA_VISIBLE_DEVICES=2 llamafactory-cli train examples/extras/delta/qwen0.5_delta_lion_like_v1_bnb_K20_pdb.yaml
+
+
+CUDA_VISIBLE_DEVICES=1 llamafactory-cli train examples/extras/delta/llama3_delta_lion_like_v2_bnb_K20.yaml
+
+
+CUDA_VISIBLE_DEVICES=2 llamafactory-cli train examples/extras/delta/llama3_delta_lion_like_v2_bnb_K20_2e2.yaml
+
+
+CUDA_VISIBLE_DEVICES=1 llamafactory-cli train examples/extras/delta_lion/llama3_delta_lion_K50_gc16_val1k_1e2.yaml
+
+CUDA_VISIBLE_DEVICES=2 llamafactory-cli train examples/extras/delta_lion/llama3_delta_lion_l2_K50_gc16_val1k_1e2.yaml
+
+CUDA_VISIBLE_DEVICES=3 llamafactory-cli train examples/extras/delta_lion/llama3_delta_lion_l2_K50_gc16_val1k_1e1.yaml x
+
+
+CUDA_VISIBLE_DEVICES=0 llamafactory-cli train examples/extras/delta_lion/llama3_delta_lion_K50_gc16_val1k_1e1.yaml x 
+
+
+
+CUDA_VISIBLE_DEVICES=0 llamafactory-cli train examples/extras/delta_lion/llama3_delta_lion_K50_gc16_val1k_1e3.yaml
+
+
+CUDA_VISIBLE_DEVICES=3 llamafactory-cli train examples/extras/delta_lion/llama3_delta_lion_K50_gc16_val1k_1e3.yaml
+
+CUDA_VISIBLE_DEVICES=0 llamafactory-cli train examples/extras/delta_lion/llama3_delta_lion_l2_K50_gc16_val1k_1e3.yaml
+
+cd /home/ubuntu/date/mq_tst/temp_2/LLaMA-Factory-Badam/
+conda activate newpeft
+
+
+nohup CUDA_VISIBLE_DEVICES=0 llamafactory-cli train examples/extras/delta_lion/llama3_delta_lion_l2_K50_gc16_val1k_1e3.yaml > /home/yourusername/logs/training.log 2>&1 &
+echo $! > /home/yourusername/logs/training.pid
+
+
+
+
+
+
+
+
+nohup CUDA_VISIBLE_DEVICES=0 llamafactory-cli train examples/extras/delta_only/llama3_delta_only_K50_gc16_val1k_nohup.yaml > /home/yourusername/logs/training.log 2>&1 &
+echo $! > /home/yourusername/logs/training.pid

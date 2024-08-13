@@ -1,0 +1,28 @@
+### model
+model_name_or_path: meta-llama/Meta-Llama-3-8B
+adapter_name_or_path: /home/ubuntu/date/test-ckpts/llama3_delta_lion_K50_gc16_val1k_1e2_save_adapter/checkpoint-1500
+quantization_bit: 4
+
+### method
+finetuning_type: delta
+
+template: llama3
+
+### dataset
+task: mmlu
+split: test
+template: fewshot
+lang: en
+n_shot: 5
+
+### output
+save_dir: /home/ubuntu/date/test-ckpts/llama3_delta_lion_K50_gc16_val1k_1e2_save_adapter/evals
+
+### eval
+batch_size: 4
+
+use_delta: true
+badam_mode: layer
+badam_switch_mode: ascending
+badam_switch_interval: 5
+badam_verbose: 1

@@ -6,7 +6,7 @@ quantization_bit: 4
 stage: sft
 do_train: true
 finetuning_type: lora
-lora_target: all
+lora_target: q_proj, k_proj, v_proj, o_proj
 lora_rank: 64
 lora_alpha: 256
 
@@ -20,9 +20,9 @@ overwrite_cache: true
 preprocessing_num_workers: 16
 
 ### output
-output_dir: /home/ubuntu/date/test-ckpts/llama3_lora_sft_bitsandbytes_for_comparision
+output_dir: /home/ubuntu/date/test-ckpts/llama3_lora_sft_bitsandbytes_for_comparision_attention_only
 logging_steps: 10
-save_steps: 500
+save_steps: 1500
 plot_loss: true
 overwrite_output_dir: true
 

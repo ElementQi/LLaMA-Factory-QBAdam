@@ -1,0 +1,20 @@
+### model
+model_name_or_path: meta-llama/Meta-Llama-3-8B
+
+quantization_bit: 4
+
+### method
+template: llama3
+
+### dataset
+task: mmlu
+split: test
+template: fewshot
+lang: en
+n_shot: 5
+
+### output
+save_dir: /home/ubuntu/date/test-ckpts/llama3_4bit/evals/saves
+
+### eval
+batch_size: 4

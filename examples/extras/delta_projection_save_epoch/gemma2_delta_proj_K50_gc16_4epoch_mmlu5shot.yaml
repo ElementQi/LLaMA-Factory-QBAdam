@@ -1,0 +1,32 @@
+## replace numpy with torch
+### this should be delta only...
+### model
+model_name_or_path: google/gemma-2-2b
+adapter_name_or_path: /home/ubuntu/date/mq_tst/new_era_proj/saves/gemma2_delta_proj_K50_gc16_4epoch
+quantization_bit: 4
+
+template: gemma
+finetuning_type: delta
+
+lora_target: all
+lora_rank: 64
+lora_alpha: 64
+
+### dataset
+task: mmlu
+split: test
+template: fewshot
+lang: en
+n_shot: 5
+
+### output
+save_dir: /home/ubuntu/date/mq_tst/new_era_proj/saves/gemma2_delta_proj_K50_gc16_4epoch/evals_mmlu5shot
+
+### eval
+batch_size: 2
+
+use_delta: true
+badam_mode: layer
+badam_switch_mode: ascending
+badam_switch_interval: 5
+badam_verbose: 1

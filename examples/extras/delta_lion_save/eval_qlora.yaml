@@ -1,0 +1,23 @@
+### model
+model_name_or_path: meta-llama/Meta-Llama-3-8B
+adapter_name_or_path: /home/ubuntu/date/test-ckpts/llama3_lora_sft_bitsandbytes_for_comparision/checkpoint-1500
+
+quantization_bit: 4
+
+### method
+finetuning_type: lora
+
+template: llama3
+
+### dataset
+task: mmlu
+split: test
+template: fewshot
+lang: en
+n_shot: 5
+
+### output
+save_dir: /home/ubuntu/date/test-ckpts/llama3_lora_sft_bitsandbytes_for_comparision/evals/result
+
+### eval
+batch_size: 4

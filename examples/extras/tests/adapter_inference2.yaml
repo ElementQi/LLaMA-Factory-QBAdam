@@ -1,0 +1,14 @@
+model_name_or_path: Qwen/Qwen1.5-0.5B
+adapter_name_or_path: /home/ubuntu/date/mq_tst/adapter_save_test/0723/adapter_save_test_2/checkpoint-20
+quantization_bit: 4
+
+
+template: default
+finetuning_type: delta
+
+
+use_delta: true
+badam_mode: layer
+badam_switch_mode: ascending
+badam_switch_interval: 5
+badam_verbose: 1

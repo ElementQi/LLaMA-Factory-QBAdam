@@ -1,3 +1,5 @@
+## replace numpy with torch
+
 ### model
 model_name_or_path: meta-llama/Meta-Llama-3-8B
 quantization_bit: 4
@@ -5,11 +7,16 @@ quantization_bit: 4
 ### method
 stage: sft
 do_train: true
-finetuning_type: lora
+finetuning_type: delta
 lora_target: all
-lora_rank: 64
-lora_alpha: 256
+lora_rank: 32
+lora_alpha: 32
 
+use_delta: true
+badam_mode: layer
+badam_switch_mode: ascending
+badam_switch_interval: 50
+badam_verbose: 1
 
 ### dataset
 dataset: alpaca_gpt4_en
@@ -20,24 +27,25 @@ overwrite_cache: true
 preprocessing_num_workers: 16
 
 ### output
-output_dir: /home/ubuntu/date/test-ckpts/llama3_lora_sft_bitsandbytes_for_comparision
+output_dir: /home/ubuntu/date/test-ckpts/llama3_delta_lion_like_v2_bnb_K50
 logging_steps: 10
-save_steps: 500
+save_steps: 10000
 plot_loss: true
 overwrite_output_dir: true
 
 ### train
 per_device_train_batch_size: 1
-gradient_accumulation_steps: 16
+gradient_accumulation_steps: 8
 learning_rate: 1.0e-5
 num_train_epochs: 1.0
 lr_scheduler_type: cosine
-warmup_ratio: 0.1
-fp16: true
+warmup_ratio: 0
+# fp16: true
+pure_bf16: true
 ddp_timeout: 180000000
 
 ### eval
-val_size: 1000
+val_size: 100
 per_device_eval_batch_size: 1
 eval_strategy: steps
-eval_steps: 200
+eval_steps: 10

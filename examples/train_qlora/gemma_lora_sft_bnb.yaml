@@ -1,5 +1,5 @@
 ### model
-model_name_or_path: meta-llama/Meta-Llama-3-8B
+model_name_or_path: google/gemma-2-2b
 quantization_bit: 4
 
 ### method
@@ -8,21 +8,21 @@ do_train: true
 finetuning_type: lora
 lora_target: all
 lora_rank: 64
-lora_alpha: 256
+lora_alpha: 64
 
 
 ### dataset
 dataset: alpaca_gpt4_en
-template: llama3
+template: gemma
 cutoff_len: 1024
 # max_samples: 1000
 overwrite_cache: true
 preprocessing_num_workers: 16
 
 ### output
-output_dir: /home/ubuntu/date/test-ckpts/llama3_lora_sft_bitsandbytes_for_comparision
+output_dir: /home/ubuntu/date/test-ckpts/gemma_lora_sft_bnb
 logging_steps: 10
-save_steps: 500
+save_steps: 1500
 plot_loss: true
 overwrite_output_dir: true
 
@@ -30,7 +30,7 @@ overwrite_output_dir: true
 per_device_train_batch_size: 1
 gradient_accumulation_steps: 16
 learning_rate: 1.0e-5
-num_train_epochs: 1.0
+num_train_epochs: 3.0
 lr_scheduler_type: cosine
 warmup_ratio: 0.1
 fp16: true
