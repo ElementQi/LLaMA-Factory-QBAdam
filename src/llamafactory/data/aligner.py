@@ -67,8 +67,15 @@ def convert_alpaca(
         if dataset_attr.prompt and examples[dataset_attr.prompt][i]:
             content.append(examples[dataset_attr.prompt][i])
 
+        # if dataset_attr.query and examples[dataset_attr.query][i]:
+            # content.append(examples[dataset_attr.query][i])
+
         if dataset_attr.query and examples[dataset_attr.query][i]:
-            content.append(examples[dataset_attr.query][i])
+            if type(examples[dataset_attr.query][i]) is list:
+                # for mmlu training
+                content.append(";".join(examples[dataset_attr.query][i]))
+            else:
+                content.append(examples[dataset_attr.query][i])
 
         prompt.append({"role": Role.USER.value, "content": "\n".join(content)})  # "prompt\nquery"
 
@@ -89,8 +96,12 @@ def convert_alpaca(
             ]
         elif dataset_attr.response and isinstance(examples[dataset_attr.response][i], str):  # normal example
             response = [{"role": Role.ASSISTANT.value, "content": examples[dataset_attr.response][i]}]
+        elif dataset_attr.response and isinstance(examples[dataset_attr.response][i], int):  # mmlu
+            choices_map = {0:"A", 1:"B", 2:"C", 3:"D"}
+            response = [{"role": Role.ASSISTANT.value, "content": choices_map[examples[dataset_attr.response][i]]}]
         else:  # unsupervised
             response = []
+
 
         outputs["prompt"].append(prompt)
         outputs["response"].append(response)

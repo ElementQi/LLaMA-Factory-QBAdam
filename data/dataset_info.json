@@ -578,5 +578,33 @@
       "prompt": "content"
     },
     "folder": "python"
+  },
+  "gsm8k_train": {
+    "hf_hub_url": "openai/gsm8k",
+    "subset": "main",
+    "split": "train",
+    "columns": {
+      "prompt": "question",
+      "response": "answer"
+    }
+  },
+  "gsm8k_eval": {
+    "hf_hub_url": "openai/gsm8k",
+    "subset": "main",
+    "split": "test",
+    "columns": {
+      "prompt": "question",
+      "response": "answer"
+    }
+  },
+  "mmlu_train": {
+    "hf_hub_url": "cais/mmlu",
+    "subset": "all",
+    "split": "auxiliary_train",
+    "columns": {
+      "prompt": "question",
+      "query": "choices",
+      "response": "answer"
+    }
   }
 }
