@@ -581,6 +581,7 @@
   },
   "gsm8k_train": {
     "hf_hub_url": "openai/gsm8k",
+    "ms_hub_url": "modelscope/gsm8k",
     "subset": "main",
     "split": "train",
     "columns": {
@@ -590,6 +591,7 @@
   },
   "gsm8k_eval": {
     "hf_hub_url": "openai/gsm8k",
+    "ms_hub_url": "modelscope/gsm8k",
     "subset": "main",
     "split": "test",
     "columns": {
