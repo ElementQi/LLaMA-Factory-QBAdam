@@ -4,6 +4,7 @@ import bitsandbytes.functional as F
 import torch
 import torch.nn as nn
 from bitsandbytes.nn import Linear4bit, Params4bit
+from peft.utils.integrations import dequantize_bnb_weight
 
 
 def dequantize_model_blocks(model, current_block_idx, device="cuda:0"):
@@ -13,8 +14,13 @@ def dequantize_model_blocks(model, current_block_idx, device="cuda:0"):
     for name_outer, child_outer in model.model.layers[current_block_idx].named_children():
         for name, child in child_outer.named_children():
             if isinstance(child, Linear4bit):
+                # child is the module
+                # dequantize_module_weight(child)
+
                 quantized_weight = child.weight
-                dequantized_weight = F.dequantize_4bit(quantized_weight.data, quantized_weight.quant_state)
+                dequantized_weight = dequantize_bnb_weight(quantized_weight, state=quantized_weight.quant_state)
+
+                # dequantized_weight = F.dequantize_4bit(quantized_weight.data, quantized_weight.quant_state)
 
                 new_linear = nn.Linear(
                     in_features=child.in_features, out_features=child.out_features, bias=(child.bias is not None)
@@ -26,7 +32,7 @@ def dequantize_model_blocks(model, current_block_idx, device="cuda:0"):
                     new_linear.bias.data = child.bias.data
                     new_linear.bias.requires_grad = True
 
-                # change Linear layer
+                # # change Linear layer
                 setattr(getattr(model.model.layers[current_block_idx], name_outer), name, new_linear)
                 del child  # Release the old quantized layer
 

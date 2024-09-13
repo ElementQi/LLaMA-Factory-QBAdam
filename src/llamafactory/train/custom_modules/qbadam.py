@@ -70,6 +70,9 @@ class QBlockOptimizer(Optimizer):
         self.param_groups = base_optimizer.param_groups
         self.state_dict = base_optimizer.state_dict  # for compatibility of hf Trainer
 
+        self.save_flag = False
+        self.block_count = 0
+
         if start_block is not None:
             self.current_block_idx = start_block
         elif switch_mode == "descending":
@@ -160,6 +163,7 @@ class QBlockOptimizer(Optimizer):
 
         if (self.global_step + 1) % self.switch_block_every == 0:
             # print(list(self.model.named_parameters()))
+            self.block_count += 1
             self.update_trainable_params(self.verbose)
 
     def _clean_hp_grad(self) -> None:
@@ -192,14 +196,34 @@ class QBlockOptimizer(Optimizer):
         """
         self.active_param_prefixs = self.block_prefix_list[self.current_block_idx] + self.active_modules
 
-        # print("hh")
-        # print(self.active_param_prefixs)
+        self.save_flag = False
+        # save rule
+        # save_step_every corresponds to the optimized block number
+        save_step_every = 500
+        K = 50
+        batch_size = 16
+        optimized_block_every = save_step_every // K
+        if self.block_count >= 1 and self.block_count % optimized_block_every == 0:
+            self.save_flag = True
 
-        # dequant current block
-        # why use not: for init step, the first block need to be dequantized
-        # if not self.dequantized_names:
+            save_path_prefix = "/home/ubuntu/date/mq_tst/inner_delta_test/llamafactory"
+            save_path = (
+                f"{save_path_prefix}/gsm8k_inner_{K}_gc{batch_size}/block_{self.block_count}_step_{self.global_step}"
+            )
 
-        # for ascending
+            # If save, quantize first, then save
+            # if self.save_flag and self.global_step >= 1:
+
+            # next epoch's logic
+            temp_current_block_idx = (self.current_block_idx - 1) % self.block_num
+            print(f"quantize block:{temp_current_block_idx} \nsaving now\n")
+            # quantize back the former
+            self.named_parameters_list = quantize_back_model_block(
+                self.model, temp_current_block_idx, self.dequantized_names, self.device
+            )
+
+            self.model.save_pretrained(save_path)
+            print("Model saved at:", save_path)
 
         # First Dequantize
         self.dequantized_names, self.named_parameters_list = dequantize_model_blocks(
@@ -278,10 +302,12 @@ class QBlockOptimizer(Optimizer):
         self.base_optimizer.state = defaultdict(lambda: {})
         # change current_block_idx
 
-        if self.global_step >= 1:
+        if self.global_step >= 1 and not self.save_flag:
+            # next epoch's logic
+            temp_current_block_idx = (self.current_block_idx - 1) % self.block_num
             # quantize back the former
             self.named_parameters_list = quantize_back_model_block(
-                self.model, self.current_block_idx - 1, self.dequantized_names, self.device
+                self.model, temp_current_block_idx, self.dequantized_names, self.device
             )
         self._update_active_block()
 
@@ -304,4 +330,4 @@ class QBlockOptimizer(Optimizer):
         # dequantize when step into next block
         # print("before release, dequantized_names:")
         # print(self.dequantized_names)
-        self.dequantized_names = []
+        # self.dequantized_names = []
