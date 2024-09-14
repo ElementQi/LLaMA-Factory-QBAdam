@@ -167,3 +167,7 @@ config/
 saves/
 output/
 wandb/
+
+
+data
+examples

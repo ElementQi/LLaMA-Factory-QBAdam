@@ -608,5 +608,14 @@
       "query": "choices",
       "response": "answer"
     }
+  },
+  "self_instruct": {
+    "hf_hub_url": "yizhongw/self_instruct",
+    "subset": "self_instruct",
+    "split": "train",
+    "columns": {
+      "prompt": "prompt",
+      "response": "completion"
+    }
   }
 }
