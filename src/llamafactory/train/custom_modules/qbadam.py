@@ -200,7 +200,7 @@ class QBlockOptimizer(Optimizer):
         # save rule
         # save_step_every corresponds to the optimized block number
         save_step_every = 500
-        K = 50
+        K = self.switch_block_every
         batch_size = 16
         optimized_block_every = save_step_every // K
         if self.block_count >= 1 and self.block_count % optimized_block_every == 0:
