@@ -201,14 +201,18 @@ class QBlockOptimizer(Optimizer):
         # save_step_every corresponds to the optimized block number
         save_step_every = 500
         K = self.switch_block_every
-        batch_size = 16
+        batch_size = 24
         optimized_block_every = save_step_every // K
-        if self.block_count >= 1 and self.block_count % optimized_block_every == 0:
+        layer_num = 32
+        # if self.block_count >= 1 and self.block_count % optimized_block_every == 0:
+
+        # badam-epoch save
+        if self.block_count >= 1 and self.block_count % layer_num == 0:
             self.save_flag = True
 
-            save_path_prefix = "/home/ubuntu/date/mq_tst/inner_delta_test/llamafactory"
+            save_path_prefix = "/dssg/home/acct-aemzl/aemzl-user1/qbadam/inner_saves"
             save_path = (
-                f"{save_path_prefix}/gsm8k_inner_{K}_gc{batch_size}/block_{self.block_count}_step_{self.global_step}"
+                f"{save_path_prefix}/alpaca_inner_K50_alpaca_gpt4_2epoch_batch24_5e6/block_{self.block_count}_step_{self.global_step}"
             )
 
             # If save, quantize first, then save
