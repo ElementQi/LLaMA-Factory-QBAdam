@@ -18,9 +18,9 @@ def dequantize_model_blocks(model, current_block_idx, device="cuda:0"):
                 # dequantize_module_weight(child)
 
                 quantized_weight = child.weight
-                dequantized_weight = dequantize_bnb_weight(quantized_weight, state=quantized_weight.quant_state)
+                # dequantized_weight = dequantize_bnb_weight(quantized_weight, state=quantized_weight.quant_state)
 
-                # dequantized_weight = F.dequantize_4bit(quantized_weight.data, quantized_weight.quant_state)
+                dequantized_weight = F.dequantize_4bit(quantized_weight.data, quantized_weight.quant_state)
 
                 new_linear = nn.Linear(
                     in_features=child.in_features, out_features=child.out_features, bias=(child.bias is not None)
