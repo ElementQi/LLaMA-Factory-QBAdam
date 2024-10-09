@@ -265,6 +265,10 @@ def _setup_lora_tuning(
         for param in filter(lambda p: p.requires_grad, model.parameters()):
             param.data = param.data.to(torch.float32)
 
+    # bf16 version qlora
+    if is_trainable:
+        for param in filter(lambda p: p.requires_grad, model.parameters()):
+            param.data = param.data.to(torch.bfloat16)
     return model
 
 
@@ -383,6 +387,12 @@ def _setup_delta_tuning(
 
     if is_trainable and cast_trainable_params_to_fp32:
         for param in filter(lambda p: p.requires_grad, model.parameters()):
+            param.data = param.data.to(torch.float32)
+
+    # delta only
+    if is_trainable:
+        for param in filter(lambda p: p.requires_grad, model.parameters()):
+            # param.data = param.data.to(torch.bfloat16)
             param.data = param.data.to(torch.float32)
 
     return model

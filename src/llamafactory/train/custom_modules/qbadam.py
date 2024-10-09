@@ -201,7 +201,7 @@ class QBlockOptimizer(Optimizer):
         # save_step_every corresponds to the optimized block number
         save_step_every = 500
         K = self.switch_block_every
-        batch_size = 24
+        batch_size = 32 # 16*2
         optimized_block_every = save_step_every // K
         layer_num = 32
         # if self.block_count >= 1 and self.block_count % optimized_block_every == 0:
@@ -212,7 +212,7 @@ class QBlockOptimizer(Optimizer):
 
             save_path_prefix = "/dssg/home/acct-aemzl/aemzl-user1/qbadam/inner_saves"
             save_path = (
-                f"{save_path_prefix}/alpaca_inner_K50_alpaca_gpt4_2epoch_batch24_5e6/block_{self.block_count}_step_{self.global_step}"
+                f"{save_path_prefix}/alpaca_inner_K{K}_gpt4_8epoch_batch16_2_1e5_oldquant/block_{self.block_count}_step_{self.global_step}"
             )
 
             # If save, quantize first, then save
