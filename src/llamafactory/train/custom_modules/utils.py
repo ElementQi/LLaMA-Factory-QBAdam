@@ -3,8 +3,7 @@ from typing import Iterable, Union
 import bitsandbytes.functional as F
 import torch
 import torch.nn as nn
-from bitsandbytes.nn import Linear4bit, Params4bit
-from peft.utils.integrations import dequantize_bnb_weight
+from bitsandbytes.nn import Linear4bit, Linear8bitLt, Params4bit
 
 
 def dequantize_model_blocks(model, current_block_idx, device="cuda:0"):
@@ -13,14 +12,17 @@ def dequantize_model_blocks(model, current_block_idx, device="cuda:0"):
 
     for name_outer, child_outer in model.model.layers[current_block_idx].named_children():
         for name, child in child_outer.named_children():
-            if isinstance(child, Linear4bit):
+            if isinstance(child, Linear4bit) or isinstance(child, Linear8bitLt):
                 # child is the module
                 # dequantize_module_weight(child)
 
                 quantized_weight = child.weight
-                dequantized_weight = dequantize_bnb_weight(quantized_weight, state=quantized_weight.quant_state)
+                # dequantized_weight = dequantize_bnb_weight(quantized_weight, state=quantized_weight.quant_state)
 
-                # dequantized_weight = F.dequantize_4bit(quantized_weight.data, quantized_weight.quant_state)
+                if isinstance(child, Linear4bit):
+                    dequantized_weight = F.dequantize_4bit(quantized_weight.data, quantized_weight.quant_state)
+                elif isinstance(child, Linear8bitLt):
+                    dequantized_weight = dequantize_8bit(child)
 
                 new_linear = nn.Linear(
                     in_features=child.in_features, out_features=child.out_features, bias=(child.bias is not None)
@@ -35,6 +37,7 @@ def dequantize_model_blocks(model, current_block_idx, device="cuda:0"):
                 # # change Linear layer
                 setattr(getattr(model.model.layers[current_block_idx], name_outer), name, new_linear)
                 del child  # Release the old quantized layer
+                torch.cuda.empty_cache()  # To free GPU memory immediately
 
                 if name not in names:
                     names.append(name)
@@ -49,13 +52,37 @@ def quantize_back_model_block(model, current_block_idx, names, device="cuda:0"):
     for name_outer, child_outer in model.model.layers[current_block_idx].named_children():
         for name, child in child_outer.named_children():
             if name in names:
-                quantized_layer = Linear4bit(
-                    input_features=child.in_features, output_features=child.out_features, bias=(child.bias is not None)
-                ).to(device)
+                # need to check whether the required x bit is 4 or 8
+                # quantize_type = 8
+                quantize_type = 4
+                if quantize_type == 4:
+                    quantized_layer = Linear4bit(
+                        input_features=child.in_features,
+                        output_features=child.out_features,
+                        bias=(child.bias is not None),
+                    ).to(device)
 
-                tensor_data, state = F.quantize_4bit(child.weight.data)
-                quantized_layer.weight = Params4bit(data=tensor_data, quant_state=state)
-                quantized_layer.weight.requires_grad = False
+                    tensor_data, state = F.quantize_4bit(child.weight.data)
+                    quantized_layer.weight = Params4bit(data=tensor_data, quant_state=state)
+                    quantized_layer.weight.requires_grad = False
+
+                    # debug happends here
+                    # dequantize back to check
+                    test_dequantized_weight = F.dequantize_4bit(quantized_layer.weight.data, quantized_layer.weight.quant_state)
+                    test_loss = torch.nn.functional.mse_loss(test_dequantized_weight, child.weight.data).item()
+                    print(f"Quantization loss for block {current_block_idx}: {test_loss}")
+
+                elif quantize_type == 8:
+                    quantized_layer = Linear8bitLt(
+                        input_features=child.in_features,
+                        output_features=child.out_features,
+                        bias=(child.bias is not None),
+                        has_fp16_weights=False,
+                    )
+                    quantized_layer.load_state_dict(child.state_dict())  # match or not
+                    quantized_layer.to(device)
+
+                    quantized_layer.weight.requires_grad = False
 
                 if child.bias is not None:
                     quantized_layer.bias.data = child.bias.data
@@ -63,11 +90,25 @@ def quantize_back_model_block(model, current_block_idx, names, device="cuda:0"):
 
                 setattr(getattr(model.model.layers[current_block_idx], name_outer), name, quantized_layer)
                 del child  # Release the old dequantized layer
+                torch.cuda.empty_cache()  # To free GPU memory immediately
 
     # update named_parameters_list
     named_parameters_list = list(model.named_parameters())
 
     return named_parameters_list
+
+def dequantize_8bit(layer: Linear8bitLt):
+    if (layer.weight.SCB is None) or (layer.weight.CB is None):
+        # artificial
+        # CB = layer.state.CB
+        CB = layer.weight.data
+        SCB = layer.state.SCB
+    else:
+        # official init
+        CB = layer.weight.CB
+        SCB = layer.weight.SCB
+    return ((CB * SCB.unsqueeze(1)) / 127).to(torch.bfloat16)
+    # return ((CB * SCB.unsqueeze(1)) / 127).to(torch.float16)
 
 
 # For torch>=2.1, `_foreach_norm` is used when implementing `clip_grad_norm_`, which doesn't support sparse tensor yet.

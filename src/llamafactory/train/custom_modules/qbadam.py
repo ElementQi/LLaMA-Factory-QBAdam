@@ -73,6 +73,10 @@ class QBlockOptimizer(Optimizer):
         self.save_flag = False
         self.block_count = 0
 
+        # testing only
+        # import copy
+        # self.ref_model = copy.deepcopy(self.model)
+
         if start_block is not None:
             self.current_block_idx = start_block
         elif switch_mode == "descending":
@@ -160,7 +164,8 @@ class QBlockOptimizer(Optimizer):
 
         self.global_step += 1
         torch.cuda.empty_cache()
-
+        # if self.global_step >= 5:
+        #     breakpoint()
         if (self.global_step + 1) % self.switch_block_every == 0:
             # print(list(self.model.named_parameters()))
             self.block_count += 1
@@ -201,7 +206,7 @@ class QBlockOptimizer(Optimizer):
         # save_step_every corresponds to the optimized block number
         save_step_every = 500
         K = self.switch_block_every
-        batch_size = 24
+        batch_size = 16
         optimized_block_every = save_step_every // K
         layer_num = 32
         # if self.block_count >= 1 and self.block_count % optimized_block_every == 0:
@@ -210,9 +215,12 @@ class QBlockOptimizer(Optimizer):
         if self.block_count >= 1 and self.block_count % layer_num == 0:
             self.save_flag = True
 
-            save_path_prefix = "/dssg/home/acct-aemzl/aemzl-user1/qbadam/inner_saves"
+            save_path_prefix = "/home/ubuntu/date/mq_tst/inner_delta_test/llamafactory"
+            # save_path = (
+            #     f"{save_path_prefix}/gsm8k_inner_K50_gc16_8bit_test/block_{self.block_count}_step_{self.global_step}"
+            # )
             save_path = (
-                f"{save_path_prefix}/alpaca_inner_K50_alpaca_gpt4_2epoch_batch24_5e6/block_{self.block_count}_step_{self.global_step}"
+                f"{save_path_prefix}/gsm8k_inner_K50_gc16_4bit_test/block_{self.block_count}_step_{self.global_step}"
             )
 
             # If save, quantize first, then save
@@ -271,6 +279,8 @@ class QBlockOptimizer(Optimizer):
                 param.requires_grad_(False)
                 param.grad = None
             else:
+                # if self.global_step >= 3:
+                #     breakpoint()
                 if self.lora_mode and "lora" not in name:
                     continue
                 if param.dtype in [torch.float16, torch.float32, torch.bfloat16]:
