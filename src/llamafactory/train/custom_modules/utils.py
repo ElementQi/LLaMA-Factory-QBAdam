@@ -69,8 +69,17 @@ def quantize_back_model_block(model, current_block_idx, names, device="cuda:0"):
                     # debug happends here
                     # dequantize back to check
                     test_dequantized_weight = F.dequantize_4bit(quantized_layer.weight.data, quantized_layer.weight.quant_state)
-                    test_loss = torch.nn.functional.mse_loss(test_dequantized_weight, child.weight.data).item()
-                    print(f"Quantization loss for block {current_block_idx}: {test_loss}")
+                    # test_loss = torch.nn.functional.mse_loss(test_dequantized_weight, child.weight.data).item()
+                    # print(f"Quantization loss for block {current_block_idx}: {test_loss}")
+
+                    # debug type 2: quantization error
+                    # block(layer): current_block_idx
+                    # projection name: name
+                    quantization_error = torch.abs(test_dequantized_weight - child.weight.data)
+                    # this is a list
+                    error_singular_ratio = singular_ratio(quantization_error)
+                    print(f"Quantization error on singular ratio list for block {current_block_idx}, name {name}: {error_singular_ratio}")
+
 
                 elif quantize_type == 8:
                     quantized_layer = Linear8bitLt(
@@ -110,6 +119,16 @@ def dequantize_8bit(layer: Linear8bitLt):
     return ((CB * SCB.unsqueeze(1)) / 127).to(torch.bfloat16)
     # return ((CB * SCB.unsqueeze(1)) / 127).to(torch.float16)
 
+def singular_ratio(A):
+    A = A.to(torch.float32)
+    U, S, Vh = torch.linalg.svd(A, full_matrices=False)
+    ratio_list = []
+    for i in range(len(S)):
+        # this is a tensor
+        ratio = S[:i].sum() / S.sum()
+        ratio_list.append(ratio.item())
+
+    return ratio_list
 
 # For torch>=2.1, `_foreach_norm` is used when implementing `clip_grad_norm_`, which doesn't support sparse tensor yet.
 # We can temporarily fix this issue by using the older torch version's implementation:
