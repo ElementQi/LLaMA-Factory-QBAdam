@@ -75,7 +75,7 @@ def quantize_back_model_block(model, current_block_idx, names, device="cuda:0"):
                     # debug type 2: quantization error
                     # block(layer): current_block_idx
                     # projection name: name
-                    quantization_error = torch.abs(test_dequantized_weight - child.weight.data)
+                    quantization_error = child.weight.data - test_dequantized_weight
                     # this is a list
                     error_singular_ratio = singular_ratio(quantization_error)
                     print(f"Quantization error on singular ratio list for block {current_block_idx}, name {name}: {error_singular_ratio}")
