@@ -77,6 +77,13 @@ class QBlockOptimizer(Optimizer):
         # import copy
         # self.ref_model = copy.deepcopy(self.model)
 
+        # test the first layer's quantization and dequantization error with the forwarding process
+        self.check_layer = self.model.model.layers[0].self_attn.q_proj.weight
+        self.updated_check_layer = None
+        self.updated_q_check_layer = None # every K adam steps, update
+        self.original_updated_q_check_layer = None
+        self.copy_flag = 0
+
         if start_block is not None:
             self.current_block_idx = start_block
         elif switch_mode == "descending":
@@ -171,6 +178,22 @@ class QBlockOptimizer(Optimizer):
             self.block_count += 1
             self.update_trainable_params(self.verbose)
 
+            # this happends layer[0] already done updated and quantized
+            # this is in 4 bit
+            # at first time, we need to do a backup
+
+            from .utils import check_updated_layer
+            self.updated_q_check_layer = self.model.model.layers[0].self_attn.q_proj.weight # pointer
+            
+            if self.copy_flag == 0:
+                import copy
+                self.original_updated_q_check_layer = copy.deepcopy(self.updated_q_check_layer)
+            
+            self.copy_flag += 1
+
+            check_updated_layer(self.original_updated_q_check_layer, self.updated_q_check_layer)
+
+
     def _clean_hp_grad(self) -> None:
         """Clean the gradients of the high precision parameters."""
         for hp_param in self.param_idx2hp.values():
@@ -220,7 +243,7 @@ class QBlockOptimizer(Optimizer):
             #     f"{save_path_prefix}/gsm8k_inner_K50_gc16_8bit_test/block_{self.block_count}_step_{self.global_step}"
             # )
             save_path = (
-                f"{save_path_prefix}/mistral_alpaca_inner_K50_bs32_4bit_copy/block_{self.block_count}_step_{self.global_step}"
+                f"{save_path_prefix}/newtransformersv2_alpaca_inner_K50_bs8*4_4bit/block_{self.block_count}_step_{self.global_step}"
             )
 
             # If save, quantize first, then save

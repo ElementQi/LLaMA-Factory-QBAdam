@@ -75,10 +75,11 @@ def quantize_back_model_block(model, current_block_idx, names, device="cuda:0"):
                     # debug type 2: quantization error
                     # block(layer): current_block_idx
                     # projection name: name
-                    quantization_error = child.weight.data - test_dequantized_weight
-                    # this is a list
-                    error_singular_ratio = singular_ratio(quantization_error)
-                    print(f"Quantization error on singular ratio list for block {current_block_idx}, name {name}: {error_singular_ratio}")
+
+                    # quantization_error = child.weight.data - test_dequantized_weight
+                    # # this is a list
+                    # error_singular_ratio = singular_ratio(quantization_error)
+                    # print(f"Quantization error on singular ratio list for block {current_block_idx}, name {name}: {error_singular_ratio}")
 
 
                 elif quantize_type == 8:
@@ -211,3 +212,32 @@ def clip_grad_norm_for_sparse_tensor(self, parameters, max_norm, norm_type=2):
         return total_norm
 
     return clip_func_(parameters, max_norm, norm_type=norm_type)
+
+
+
+from bitsandbytes.nn.modules import Params4bit
+from torch.nn.parameter import Parameter
+
+def check_updated_layer(param_original: Params4bit, param_pointer: Params4bit):
+    """
+    - check `==` and `is` of the quantized layer(original and pointer)
+    - check the dq of original updated and dq of the pointer to the layer 0.
+    """
+
+    if type(param_original) is not Params4bit or type(param_pointer) is not Params4bit:
+        print(f"not supported type: {type(param_original)} or type(param_pointer)")
+        return False
+
+    equal_sign = torch.equal(param_original, param_pointer)
+    is_sign = param_original is param_pointer
+
+    print(f"equal(==): {equal_sign}; is: {is_sign}")
+
+    # dequantize the original updated layer
+    dequantized_weight = F.dequantize_4bit(param_original.data, param_original.quant_state)
+    # dequantize the pointer layer
+    dequantized_weight_pointer = F.dequantize_4bit(param_pointer.data, param_pointer.quant_state)
+
+    equal_sign_dq = torch.equal(dequantized_weight, dequantized_weight_pointer)
+
+    print(f"equal(==) of dequantized weight: {equal_sign_dq}")
