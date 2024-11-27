@@ -73,6 +73,9 @@ class QBlockOptimizer(Optimizer):
         self.save_flag = False
         self.block_count = 0
 
+        # inner delta q-search
+        self.kappa = 25
+
         # testing only
         # import copy
         # self.ref_model = copy.deepcopy(self.model)
@@ -170,6 +173,12 @@ class QBlockOptimizer(Optimizer):
             # print(list(self.model.named_parameters()))
             self.block_count += 1
             self.update_trainable_params(self.verbose)
+        else:
+            # q search
+            if self.global_step % self.kappa == 0:
+                # only happends when self.dequantized_names is not null
+                if self.dequantized_names:
+                    self._qdq_block()
 
     def _clean_hp_grad(self) -> None:
         """Clean the gradients of the high precision parameters."""
@@ -220,7 +229,7 @@ class QBlockOptimizer(Optimizer):
             #     f"{save_path_prefix}/gsm8k_inner_K50_gc16_8bit_test/block_{self.block_count}_step_{self.global_step}"
             # )
             save_path = (
-                f"{save_path_prefix}/gsm8k_inner_K50_gc16_4bit_test/block_{self.block_count}_step_{self.global_step}"
+                f"{save_path_prefix}/llama3_alpaca_inner_K50_bs32_qsearch_kappa25/block_{self.block_count}_step_{self.global_step}"
             )
 
             # If save, quantize first, then save
@@ -345,3 +354,54 @@ class QBlockOptimizer(Optimizer):
         # print("before release, dequantized_names:")
         # print(self.dequantized_names)
         # self.dequantized_names = []
+    
+    def _qdq_block(self):
+        dequantized_current_block_idx = (self.current_block_idx - 1) % self.block_num
+
+        # Reset parameters to be optimized
+        self.param_idx2lp = {}
+        self.param_idx2hp = {}
+
+        active_param_groups = [
+            {"params": [], "weight_decay": self.param_groups[0]["weight_decay"], **self.defaults},
+            {"params": [], "weight_decay": 0.0, **self.defaults},
+        ]
+
+        # self.named_parameters_list is same
+        self.named_parameters_list = quantize_back_model_block(
+            self.model, dequantized_current_block_idx, self.dequantized_names, self.device
+        )
+        
+        # no need to save the dequantized names
+        self.dequantized_names, self.named_parameters_list = dequantize_model_blocks(
+            self.model, dequantized_current_block_idx, self.device
+        )
+
+        # loop all params
+        # self.active_param_prefixs is keep the same
+        for i, (name, param) in enumerate(self.named_parameters_list):
+            if not any(p in name for p in self.active_param_prefixs):
+                param.requires_grad_(False)
+                param.grad = None
+            else:
+                if self.lora_mode and "lora" not in name:
+                    continue
+                if param.dtype in [torch.float16, torch.float32, torch.bfloat16]:
+                    param.requires_grad_(True)
+                    param_hp = param.clone().float().detach().to(param.device)
+                    param_hp.requires_grad = True
+
+                    self.param_idx2lp[i] = param
+                    self.param_idx2hp[i] = param_hp
+
+                    if "bias" not in name and not isinstance(param, tuple(ALL_LAYERNORM_LAYERS)):
+                        active_param_groups[0]["params"].append(param_hp)
+                    else:
+                        active_param_groups[1]["params"].append(param_hp)
+
+        self.base_optimizer.param_groups = active_param_groups
+        import gc
+
+        gc.collect()
+        # Clean the optimizer state
+        self.base_optimizer.state = defaultdict(lambda: {})
