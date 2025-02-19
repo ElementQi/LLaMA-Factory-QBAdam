@@ -44,7 +44,7 @@ logger = logging.get_logger(__name__)
 
 mean_abs = lambda x: torch.mean(torch.abs(x))
 FULL_LAYER_MODE = True
-
+FULL_SFT_MODE = False
 
 class CustomSeq2SeqTrainer(Seq2SeqTrainer):
     r"""
@@ -79,6 +79,8 @@ class CustomSeq2SeqTrainer(Seq2SeqTrainer):
             self.add_callback(BAdamCallback)
 
         self.quantized_L2_output = []
+        self.original_L2_output = []
+        self.original_lm_head = []
 
     @override
     def create_optimizer(self) -> "torch.optim.Optimizer":
@@ -165,66 +167,93 @@ class CustomSeq2SeqTrainer(Seq2SeqTrainer):
                 f.write(json.dumps({"prompt": text, "predict": pred, "label": label}, ensure_ascii=False) + "\n")
 
     def capture_original_L2_output(self, module, inputs, outputs):
+        # self.original_L2_output.append(outputs[0])
+
+        l2_norm = outputs[0].detach().norm().item()  # Convert to scalar immediately
+        # self.original_L2_output.append(l2_norm)
+        # self.original_L2_output.append(outputs[0].shape)
         self.original_L2_output.append(outputs[0])
 
     def capture_quantized_L2_output(self, module, inputs, outputs):
         self.quantized_L2_output.append(outputs[0])
 
+    def capture_original_lm_head(self, module, inputs, outputs):
+        self.original_lm_head.append(outputs[0])
+
     @override
     def compute_loss(self, model, inputs, return_outputs=False):
-
-        for n, p in model.named_parameters():
-            p.requires_grad = False
-
         layer_for_measurement = model.lm_head
 
-        hook_prev_out = layer_for_measurement.register_forward_hook(self.capture_original_L2_output)
-        # loss_sft = model(**inputs).loss
+        # hook_prev_out = layer_for_measurement.register_forward_hook(self.capture_original_L2_output)
+
+        # FULL_SFT_MODE = True
+
+        if FULL_SFT_MODE:
+            hook_prev_out = layer_for_measurement.register_forward_hook(self.capture_original_lm_head)
+        else:
+            hook_prev_out = layer_for_measurement.register_forward_hook(self.capture_quantized_L2_output)
+
+
+        # model.eval()  # Disable dropout/batchnorm
+        # with torch.no_grad():  
+        #     outputs = model(**inputs)
+
         outputs = model(**inputs)
-        loss_sft = outputs.loss
+
+        # QUANT_METHOD = "awq"
+        # save_dir = f"saved_outputs_for_sft/{QUANT_METHOD}/"
+
+        save_dir = f"saved_outputs_for_sft"
+
+        # breakpoint()
+        if FULL_SFT_MODE:
+            # full sft only
+            original_lm_head_tensor = self.original_lm_head[0].detach().cpu()  # Detach and move to CPU
+            
+            os.makedirs(save_dir, exist_ok=True)  # Create directory if needed
+            lm_head_save_path = os.path.join(save_dir, "lm_head.pt")
+            loss_sft_save_path = os.path.join(save_dir, "loss.pt")
+
+            loss_sft = outputs.loss.detach().cpu()
+            torch.save(original_lm_head_tensor, lm_head_save_path)
+            torch.save(loss_sft, loss_sft_save_path)
+
+            self.log({
+                "INFO": "original sft files saved",
+                "lm_head shape": original_lm_head_tensor.shape,
+                "loss_sft": loss_sft
+                })
+        else:
+            # for comparison only
+            original_tensor = torch.load(f"{save_dir}/lm_head.pt")
+            loss_sft = torch.load(f"{save_dir}/loss.pt")
+            original_tensor = original_tensor.to("cuda")  # Move back to GPU if needed
+            loss_sft = loss_sft.to("cuda")
+            
+            loss_sft_quant = outputs.loss
+            loss_quant = torch.norm(original_tensor - self.quantized_L2_output[0], p=2)
+            relative_error = mean_abs(original_tensor - self.quantized_L2_output[0]) / mean_abs(original_tensor).detach()
+
+        # self.log({"loaded_tensor": loaded_tensor})
         hook_prev_out.remove()
 
-        # loss_quant = 0.
+        if not FULL_SFT_MODE:
+            self.log(
+                {
+                    "loss_sft": loss_sft.detach().item(),
+                    "loss_sft_quant": loss_sft_quant.detach().item(),
+                    "loss_quant": loss_quant.detach().item(),
+                    "relative_error": relative_error.detach().item()
+                }
+            )
 
-        # # only compute the quantization loss when in training mode
-        # hook_quantized_out = layer_for_measurement.register_forward_hook(self.capture_quantized_L2_output)
-        # loss_sft_quant = model(**inputs)
-
-        # loss_quant = torch.norm(self.original_L2_output[0] - self.quantized_L2_output[0], p=2)
-        # # loss_quant = self._cal_quantization_loss()
-        # relative_error = mean_abs(self.original_L2_output[0] - self.quantized_L2_output[0]) / mean_abs(self.original_L2_output[0]).detach()
-        # print(f"loss_sft: {loss_sft}, loss_quant: {loss_quant}, relative_error: {relative_error}")
-
-
-        # if not FULL_LAYER_MODE:
-        #     self.log(
-        #         {
-        #             "loss_sft": loss_sft.detach().item(),
-        #             "loss_sft_quant": loss_sft_quant.loss.detach().item(),
-        #             "loss_quant": loss_quant.detach().item(),
-        #             "relative_error": relative_error.detach().item()
-        #         }
-        #     )
-        # else:
-        self.log(
-            {
-                "loss_sft": loss_sft.detach().item(),
-                "original_L2_output":self.original_L2_output[0]
-            }
-        )
-
-
-        # hook_quantized_out.remove()
-
-        # self.original_L2_output = []
-        # self.quantized_L2_output = []
-
-        # # alpha = 0.001 if step <= 50 else 0.
-        # loss = loss_sft + self.quant_alpha * loss_quant
+        self.original_L2_output = []
 
         loss = loss_sft
         
         torch.cuda.empty_cache()
+        raise ValueError("Stop here")
+
         if not torch.is_grad_enabled():
             return loss, outputs
         else:

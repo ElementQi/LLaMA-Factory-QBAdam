@@ -1,7 +1,6 @@
 ### model
-model_name_or_path: /home/ubuntu/date/mq_tst/quants_test/awq/autoawq/llama-3.2-1B-v0.2-awq
+model_name_or_path: /home/ubuntu/date/mq_tst/quants_test/vptq/VPTQ/outputs/Llama-3.2-1B/2025-02-13-17-03-51/packed_model
 trust_remote_code: true
-
 
 ### method
 stage: sft
@@ -19,7 +18,7 @@ overwrite_cache: true
 preprocessing_num_workers: 16
 
 ### output
-output_dir: saves/llama3.2-1b/lora/gptq-sft
+output_dir: saves/llama3.2-1b/lora/vptq-sft
 logging_steps: 10
 save_steps: 500
 plot_loss: true

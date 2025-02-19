@@ -1,7 +1,9 @@
 ### model
-model_name_or_path: /home/ubuntu/date/mq_tst/quants_test/awq/autoawq/llama-3.2-1B-v0.2-awq
+model_name_or_path: meta-llama/Llama-3.2-1B
+quantization_bit: 4
+quantization_method: bitsandbytes
+double_quantization: false
 trust_remote_code: true
-
 
 ### method
 stage: sft
