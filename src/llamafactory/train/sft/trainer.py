@@ -17,6 +17,7 @@
 
 import json
 import os
+import csv
 from types import MethodType
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
 
@@ -78,9 +79,41 @@ class CustomSeq2SeqTrainer(Seq2SeqTrainer):
             self.accelerator.clip_grad_norm_ = MethodType(clip_grad_norm_old_version, self.accelerator)
             self.add_callback(BAdamCallback)
 
+        self.output_csv_path = os.path.join(self.args.output_dir, "metrics.csv")
+        os.makedirs(self.args.output_dir, exist_ok=True)
+        
+        # if not os.path.exists(self.output_csv_path):
+        with open(self.output_csv_path, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                "eval_step",
+                "loss_sft",
+                "loss_sft_quant",
+                "current_loss_quant",
+                "current_relative_error",
+                "avg_loss_quant",
+                "avg_relative_error"
+            ])
+
+        
         self.quantized_L2_output = []
         self.original_L2_output = []
         self.original_lm_head = []
+        self.quant_input_counter = 0
+        self.running_loss_quant = 0.0
+        self.running_relative_error = 0.0
+
+        FULL_LAYER_MODE = False
+        if not FULL_LAYER_MODE:
+            from transformers import AutoModelForCausalLM
+            model_id = "meta-llama/Llama-3.2-1B"
+            device = torch.device("cuda:0")
+            self.base_model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float16, device_map=device)
+
+            for i in range(1, len(self.model.model.layers)):
+                self.model.model.layers[i] = self.base_model.model.layers[i]
+                self.model.model.layers[i] = self.model.model.layers[i].to(device)
+
 
     @override
     def create_optimizer(self) -> "torch.optim.Optimizer":
@@ -184,6 +217,9 @@ class CustomSeq2SeqTrainer(Seq2SeqTrainer):
     def compute_loss(self, model, inputs, return_outputs=False):
         layer_for_measurement = model.lm_head
 
+        # if self.quant_input_counter == 0:
+        #     self.eval()
+
         # hook_prev_out = layer_for_measurement.register_forward_hook(self.capture_original_L2_output)
 
         # FULL_SFT_MODE = True
@@ -193,24 +229,21 @@ class CustomSeq2SeqTrainer(Seq2SeqTrainer):
         else:
             hook_prev_out = layer_for_measurement.register_forward_hook(self.capture_quantized_L2_output)
 
-
-        # model.eval()  # Disable dropout/batchnorm
-        # with torch.no_grad():  
-        #     outputs = model(**inputs)
-
-        outputs = model(**inputs)
+        with torch.no_grad():
+            outputs = model(**inputs)
 
         # QUANT_METHOD = "awq"
         # save_dir = f"saved_outputs_for_sft/{QUANT_METHOD}/"
 
-        save_dir = f"saved_outputs_for_sft"
+        save_dir_prefix = f"saved_outputs_for_eval"
+        save_dir = f"{save_dir_prefix}/{self.quant_input_counter}"
 
         # breakpoint()
+
         if FULL_SFT_MODE:
             # full sft only
-            original_lm_head_tensor = self.original_lm_head[0].detach().cpu()  # Detach and move to CPU
-            
-            os.makedirs(save_dir, exist_ok=True)  # Create directory if needed
+            original_lm_head_tensor = self.original_lm_head[0].detach().cpu()
+            os.makedirs(save_dir, exist_ok=True)
             lm_head_save_path = os.path.join(save_dir, "lm_head.pt")
             loss_sft_save_path = os.path.join(save_dir, "loss.pt")
 
@@ -221,38 +254,76 @@ class CustomSeq2SeqTrainer(Seq2SeqTrainer):
             self.log({
                 "INFO": "original sft files saved",
                 "lm_head shape": original_lm_head_tensor.shape,
-                "loss_sft": loss_sft
-                })
+                "loss_sft": loss_sft.item()
+            })
+
+            # Increment evaluation counter in FULL_SFT_MODE as well
+            self.quant_input_counter += 1
+
         else:
             # for comparison only
             original_tensor = torch.load(f"{save_dir}/lm_head.pt")
             loss_sft = torch.load(f"{save_dir}/loss.pt")
-            original_tensor = original_tensor.to("cuda")  # Move back to GPU if needed
+            original_tensor = original_tensor.to("cuda")
             loss_sft = loss_sft.to("cuda")
-            
+
             loss_sft_quant = outputs.loss
+
+            # Compute current loss_quant and relative_error (scalar values)
             loss_quant = torch.norm(original_tensor - self.quantized_L2_output[0], p=2)
             relative_error = mean_abs(original_tensor - self.quantized_L2_output[0]) / mean_abs(original_tensor).detach()
 
-        # self.log({"loaded_tensor": loaded_tensor})
+            # Update the running sums for metrics
+            self.quant_input_counter += 1
+            self.running_loss_quant += loss_quant.detach().cpu().item()
+            self.running_relative_error += relative_error.detach().cpu().item()
+
+            # Calculate running averages
+            avg_loss_quant = self.running_loss_quant / self.quant_input_counter
+            avg_relative_error = self.running_relative_error / self.quant_input_counter
+
+            metrics_data = {
+                "loss_sft": loss_sft.detach().item(),
+                "loss_sft_quant": loss_sft_quant.detach().cpu().item(),
+                "current_loss_quant": loss_quant.detach().cpu().item(),
+                "current_relative_error": relative_error.detach().cpu().item(),
+                "avg_loss_quant": avg_loss_quant,
+                "avg_relative_error": avg_relative_error,
+                "eval_count": self.quant_input_counter
+            }
+
+            csv_row = [
+                self.quant_input_counter,
+                metrics_data["loss_sft"],
+                metrics_data["loss_sft_quant"],
+                metrics_data["current_loss_quant"],
+                metrics_data["current_relative_error"],
+                metrics_data["avg_loss_quant"],
+                metrics_data["avg_relative_error"]
+            ]
+
+            # 追加到CSV文件
+            with open(self.output_csv_path, 'a', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(csv_row)
+
+            print(metrics_data)
+
+            # output_dir = self.args.output_dir
+            # os.makedirs(output_dir, exist_ok=True)
+            # output_path = os.path.join(output_dir, f"eval_metrics_step_{self.quant_input_counter}.json")
+
+            # with open(output_path, 'w') as f:
+            #     json.dump(metrics_data, f, indent=4)
+
+
         hook_prev_out.remove()
-
-        if not FULL_SFT_MODE:
-            self.log(
-                {
-                    "loss_sft": loss_sft.detach().item(),
-                    "loss_sft_quant": loss_sft_quant.detach().item(),
-                    "loss_quant": loss_quant.detach().item(),
-                    "relative_error": relative_error.detach().item()
-                }
-            )
-
         self.original_L2_output = []
+        self.original_lm_head = []
+        self.quantized_L2_output = []
 
         loss = loss_sft
-        
         torch.cuda.empty_cache()
-        raise ValueError("Stop here")
 
         if not torch.is_grad_enabled():
             return loss, outputs
