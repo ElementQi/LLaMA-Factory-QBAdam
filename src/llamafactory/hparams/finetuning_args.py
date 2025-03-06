@@ -355,7 +355,22 @@ class BAdamArgument:
             )
         },
     )
-
+    use_qbcd: bool = field(
+        default=False,
+        metadata={"help": "Whether or not to use the quantization bcd"},
+    )
+    use_qabcd: bool = field(
+        default=False,
+        metadata={"help": "Whether or not to use the quantization aware bcd"},
+    )
+    qbcd_quant_type: Literal["8bit", "4bit"] = field(
+        default="None",
+        metadata={"help": "The quantization type for qbcd."},
+    )
+    qabcd_quant_alpha: float = field(
+        default=0,
+        metadata={"help": "QA BCD alpha value."},
+    )
 
 @dataclass
 class SwanLabArguments:
